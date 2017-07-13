@@ -24,6 +24,14 @@ import (
 // 5. calculate number of lines left in untested state and save in map
 // 6. iterate through final map, pretty printing the output
 
+// map of values would look like this:
+// path:ling:function -> {coverage, line_count, lines_untested}
+// example: fmt/print.go:1133:doPrintln -> {8, 100%, 0}
+//
+
+// should pass in the file with the list of functions and their percentages, and the location of the file/files to read
+// start with one file though
+
 // usage simply prints out the usage for the program
 func usage() {
 	fmt.Printf("USAGE: durial <coverage.out>\n")
@@ -42,7 +50,8 @@ func main() {
 	}
 
 	// try to open it (should be of type .out)
-	file, err := os.Open(args[0])
+	filePath := args[0]
+	file, err := os.Open(filePath)
 
 	if err != nil {
 		fmt.Printf("ERROR! Can't open file %v: %v", args[1], err)
@@ -55,7 +64,11 @@ func main() {
 	curLine := ""
 	inFunc := false
 	funcSize := 0
-	index := 0
+	index1 := 0
+	curFuncName := ""
+
+	// map to hold func names and line counts
+	funcLineMap := make(map[string]int)
 
 	for scanner.Scan() {
 		//fmt.Println(scanner.Text())
@@ -69,11 +82,12 @@ func main() {
 				// If we are in a function, first check to see if this is the last line of the function
 				if curLine[0:1] == "}" {
 					inFunc = false
-					fmt.Printf("[%v lines]\n", funcSize)
 				} else {
 					// Don't count comments
 					if curLine[0:2] != "//" {
-						funcSize++
+						funcSize = funcSize + 1
+						funcLineMap[filePath+"/"+curFuncName] = funcSize
+
 					}
 				}
 			}
@@ -81,11 +95,31 @@ func main() {
 			if len(curLine) > 4 {
 				if curLine[0:4] == "func" {
 					inFunc = true
-					index = strings.Index(curLine, "{")
-					fmt.Printf("> %v ", curLine[:index])
+					funcSize = 0
+					curFuncName = ""
+					funcNameStr := ""
+
+					// need to check if this is an interface method
+					index1 = strings.Index(curLine, "(")
+					if index1 == 5 {
+						tempLine := curLine[6:]
+						index2 := strings.Index(tempLine, ")")
+						tempLine2 := tempLine[index2+2:]
+						index3 := strings.Index(tempLine2, "(")
+						funcNameStr = tempLine2[:index3]
+						curFuncName = funcNameStr
+					} else {
+
+						curFuncName = curLine[5:index1]
+					}
+
+					funcLineMap[filePath+"/"+curFuncName] = 0
 				}
 			}
 		}
 	}
 
+	for key, val := range funcLineMap {
+		fmt.Printf("%v \t %v\n", key, val)
+	}
 }
