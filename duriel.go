@@ -1,6 +1,6 @@
 // durial
 
-package duriel
+package main
 
 import (
 	"bufio"
@@ -8,30 +8,18 @@ import (
 	"log"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 )
 
-// setup...formatter, importer, autocomplete
+type funcStat struct {
+	size      int     // size of the function
+	covered   float64 // percentage covered
+	remaining int     // lines remaining to be tested
+}
 
-// TODO
-// 1. run test and generate *.out file
-// 2. run cover tool to generate func stats
-// 3. read in go files and start parsing functions
-//   3a. read function name, store in map like so package:funcName
-//   3b. skip blank lines and comments
-//   3c. count total function lines
-//   3d. store in map
-// 4. when all files have been read, iterate through list of functions from go cover
-// 5. calculate number of lines left in untested state and save in map
-// 6. iterate through final map, pretty printing the output
-
-// map of values would look like this:
-// path:ling:function -> {coverage, line_count, lines_untested}
-// example: fmt/print.go:1133:doPrintln -> {8, 100%, 0}
-//
-
-// should pass in the file with the list of functions and their percentages, and the location of the file/files to read
-// start with one file though
+// a map to hold the func path and its stats
+type statMap map[string]funcStat
 
 // a map of to be used for function names to line counts
 type flmap map[string]int
@@ -43,7 +31,7 @@ func usage() {
 
 // countFunctionLines counts all the lines of each function in the passed
 // in file and returns a map of function names to line count
-func countFunctionLines(filePath string, funcLineMap flmap) (flmap, error) {
+func countFunctionLines(filePath string, funcLineMap statMap) error {
 
 	file, err := os.Open(filePath)
 
@@ -61,8 +49,7 @@ func countFunctionLines(filePath string, funcLineMap flmap) (flmap, error) {
 	index1 := 0
 	curFuncName := ""
 
-	// map to hold func names and line counts
-	//funcLineMap := make(map[string]int)
+	curStat := funcStat{}
 
 	for scanner.Scan() {
 		//fmt.Println(scanner.Text())
@@ -80,7 +67,10 @@ func countFunctionLines(filePath string, funcLineMap flmap) (flmap, error) {
 					// Don't count comments
 					if curLine[0:2] != "//" {
 						funcSize = funcSize + 1
-						funcLineMap[filePath+"/"+curFuncName] = funcSize
+						//funcLineMap[filePath+"/"+curFuncName] = funcSize
+						curStat = funcLineMap[filePath+":"+curFuncName]
+						curStat.size = funcSize
+						funcLineMap[filePath+":"+curFuncName] = curStat
 
 					}
 				}
@@ -107,31 +97,79 @@ func countFunctionLines(filePath string, funcLineMap flmap) (flmap, error) {
 						curFuncName = curLine[5:index1]
 					}
 
-					funcLineMap[filePath+"/"+curFuncName] = 0
+					curStat = funcLineMap[filePath+":"+curFuncName]
+					curStat.size = funcSize
+					funcLineMap[filePath+":"+curFuncName] = curStat
 				}
 			}
 		}
 	}
 
-	return funcLineMap, nil
+	return nil
 }
 
-func parseFilePaths(outFile string) flmap {
+// used to get just the filepath
+func extractFilePath(curLine string, uniqueFilePaths flmap) {
+	index := strings.Index(curLine, ":")
+	filePathStr := curLine[0:index]
+	joinPath := os.Getenv("GOPATH") + "/src"
+	newPath := path.Join(joinPath, filePathStr)
+	uniqueFilePaths[newPath] = 1
+}
+
+// populateFuncStats gets the ball rolling
+func populateFuncStats(curLine string, funcStats statMap) {
+	// get filepath first
+	index := strings.Index(curLine, ":")
+	filePathStr := curLine[0:index]
+
+	// trim off the :XX: part
+	tempStr := curLine[index+1:]
+	index = strings.Index(tempStr, ":")
+	tempStr = tempStr[index+1:]
+
+	// now get the function name
+	index = strings.Index(tempStr, "%")
+	funcName := strings.TrimSpace(tempStr[:index-5])
+
+	// now grab the percentage
+	pIndex := strings.Index(curLine, "%")
+	percentage := strings.TrimSpace(curLine[pIndex-5 : pIndex])
+
+	joinPath := os.Getenv("GOPATH") + "/src"
+	fullPath := path.Join(joinPath, filePathStr)
+
+	pVal, err := strconv.ParseFloat(percentage, 64)
+	if err != nil {
+		log.Printf("ERROR - Can't convert percentage to float")
+		pVal = -1.0
+	}
+
+	key := fullPath + ":" + funcName
+
+	funcStats[key] = funcStat{
+		covered: pVal,
+	}
+
+}
+
+// this pulls out the list of files as well as the function coverage percentages
+func parseFunctionList(outFile string) (flmap, statMap) {
 
 	file, err := os.Open(outFile)
 	if err != nil {
 		fmt.Printf("ERROR! Can't open file %v: %v", outFile, err)
 		log.Fatal(err)
-		return flmap{}
+		return flmap{}, statMap{}
 	}
 
 	defer file.Close()
 
-	uniqueFilePaths := make(map[string]int)
+	uniqueFilePaths := make(flmap)
+	funcStats := make(statMap)
+
 	scanner := bufio.NewScanner(file)
-	filePathStr := ""
 	curLine := ""
-	newPath := ""
 
 	for scanner.Scan() {
 		curLine = scanner.Text()
@@ -140,14 +178,14 @@ func parseFilePaths(outFile string) flmap {
 			continue
 		}
 
-		index := strings.Index(curLine, ":")
-		filePathStr = curLine[0:index]
-		newPath = path.Join(os.Getenv("GOPATH"), filePathStr)
-		uniqueFilePaths[newPath] = 1
+		// pull out only the list of files we need later
+		extractFilePath(curLine, uniqueFilePaths)
 
+		// start populating the function map with the coverage values
+		populateFuncStats(curLine, funcStats)
 	}
 
-	return uniqueFilePaths
+	return uniqueFilePaths, funcStats
 }
 
 // main
@@ -155,10 +193,6 @@ func main() {
 
 	// check that the file passed in is a .out file
 	// then make sure that only one made it in
-	// then scan through that file and pickout the filenames
-	// iterate over that list of filenames and call the counting function
-	// once all the scanning is done (consider multithreading) then work the math
-	// need to just do an estimate on number of remaining uncovered lines
 
 	// grab the file passed in
 	args := os.Args[1:]
@@ -172,33 +206,18 @@ func main() {
 	// try to open it (should be of type .out)
 	filePath := args[0]
 
-	// the map that will hold all the files
-	newMap := make(flmap)
+	fileList, funcStats := parseFunctionList(filePath)
 
-	//filePathList := parseFilePaths(curDir, filePath)
-	filePathList := parseFilePaths(filePath)
+	for key, _ := range fileList {
+		err := countFunctionLines(key, funcStats)
 
-	for key, val := range filePathList {
-		log.Printf("%v - %v", key, val)
+		if err != nil {
+			log.Printf("ERROR - Can't get line count for file %v: %v", key, err)
+		}
+
 	}
 
-	debug := false
-	if debug {
-		finalMap, err := countFunctionLines(filePath, newMap)
-
-		if err != nil {
-			log.Printf("ERROR - Can't get line count for file %v: %v", filePath, err)
-		}
-
-		testFP := "/usr/local/go/src/bufio/bufio.go"
-		finalMap, err = countFunctionLines(testFP, finalMap)
-
-		if err != nil {
-			log.Printf("ERROR - Can't get line count for file %v: %v", filePath, err)
-		}
-
-		for key, val := range finalMap {
-			fmt.Printf("[%v - %v]\n", key, val)
-		}
+	for key, val := range funcStats {
+		fmt.Printf("### %v \t %v\n", key, val)
 	}
 }
