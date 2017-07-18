@@ -6,16 +6,18 @@ import (
 	"bufio"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 )
 
 type funcStat struct {
 	size      int     // size of the function
 	covered   float64 // percentage covered
-	remaining int     // lines remaining to be tested
+	remaining float64 // lines remaining to be tested
 }
 
 // a map to hold the func path and its stats
@@ -67,11 +69,14 @@ func countFunctionLines(filePath string, funcLineMap statMap) error {
 					// Don't count comments
 					if curLine[0:2] != "//" {
 						funcSize = funcSize + 1
-						//funcLineMap[filePath+"/"+curFuncName] = funcSize
 						curStat = funcLineMap[filePath+":"+curFuncName]
 						curStat.size = funcSize
+						uncovered := float64(1 - (curStat.covered / 100.0))
+						curStat.remaining = math.Ceil(float64(curStat.size) * uncovered)
+						if curStat.covered == 100.0 {
+							curStat.remaining = 0
+						}
 						funcLineMap[filePath+":"+curFuncName] = curStat
-
 					}
 				}
 			}
@@ -99,6 +104,10 @@ func countFunctionLines(filePath string, funcLineMap statMap) error {
 
 					curStat = funcLineMap[filePath+":"+curFuncName]
 					curStat.size = funcSize
+					curStat.remaining = math.Floor(float64(curStat.size)*1.0 - (curStat.covered / 100.0))
+					if curStat.covered == 100.0 {
+						curStat.remaining = 0
+					}
 					funcLineMap[filePath+":"+curFuncName] = curStat
 				}
 			}
@@ -217,7 +226,13 @@ func main() {
 
 	}
 
+	const padding = 3
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, padding, ' ', tabwriter.AlignRight|tabwriter.Debug)
+	fmt.Fprintln(w, "NAME\tSIZE\tCOVERAGE\tREMAINING\t")
 	for key, val := range funcStats {
-		fmt.Printf("### %v \t %v\n", key, val)
+		//fmt.Fprintln(w, "\t\t\t\t", key, val.size, val.covered, val.remaining)
+		fmt.Fprintln(w, key, "\t", val.size, "\t", val.covered, "\t", val.remaining, "\t")
+		//fmt.Printf("%v\t\t\t%v lines\t%v%%\t(%v lines uncovered)\n", key, val.size, val.covered, val.remaining)
 	}
+	w.Flush()
 }
