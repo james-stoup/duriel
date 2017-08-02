@@ -15,24 +15,36 @@ import (
 )
 
 type funcStat struct {
+	name      string  // name of the function
+	path      string  // path to the file
 	size      int     // size of the function
 	covered   float64 // percentage covered
 	remaining float64 // lines remaining to be tested
 }
 
-// a map to hold the func path and its stats
+// A map to hold the func path and its stats
 type statMap map[string]funcStat
 
-// a map of to be used for function names to line counts
+// A map used for matching function names to line counts
 type flmap map[string]int
 
-// usage simply prints out the usage for the program
+// Usage simply prints out the usage for the program
 func usage() {
 	fmt.Printf("USAGE: durial <coverage.out>\n")
 }
 
-// countFunctionLines counts all the lines of each function in the passed
-// in file and returns a map of function names to line count
+// Handle calculating the coverage
+func calcStats(funcSize int, curStat *funcStat) {
+	uncovered := float64(1 - (curStat.covered / 100.0))
+	curStat.remaining = math.Ceil(float64(curStat.size) * uncovered)
+	if curStat.covered == 100.0 {
+		curStat.remaining = 0
+	}
+}
+
+// countFunctionLines counts the lines of each function in the passed
+// in file and returns a map of function names to line counts. It ignores
+// comments and empty lines when counting.
 func countFunctionLines(filePath string, funcLineMap statMap) error {
 
 	file, err := os.Open(filePath)
@@ -47,69 +59,95 @@ func countFunctionLines(filePath string, funcLineMap statMap) error {
 	scanner := bufio.NewScanner(file)
 	curLine := ""
 	inFunc := false
+	checkNextLine := false
 	funcSize := 0
 	index1 := 0
 	curFuncName := ""
-
 	curStat := funcStat{}
+	key := ""
+	prevLine := ""
 
+	if checkNextLine == true || prevLine == "derp" {
+		log.Printf("derp")
+	}
+
+	// Iterate over the entire file
 	for scanner.Scan() {
-		//fmt.Println(scanner.Text())
+		//curLine = strings.TrimSpace(scanner.Text())
 		curLine = scanner.Text()
 
+		//log.Printf("curLine: |%v|", curLine)
+
 		if inFunc {
-			strings.TrimSpace(curLine)
+
+			// check for one line functions
+			// if curLine == "" && checkNextLine {
+			// 	log.Printf("FOUND A ONE LINER")
+			// 	curStat = funcLineMap[filePath+":"+curFuncName]
+			// 	curStat.size = 1
+			// 	uncovered := float64(1 - (curStat.covered / 100.0))
+			// 	curStat.remaining = math.Ceil(float64(curStat.size) * uncovered)
+			// 	if curStat.covered == 100.0 {
+			// 		curStat.remaining = 0
+			// 	}
+
+			// 	funcLineMap[filePath+":"+curFuncName] = curStat
+			// 	inFunc = false
+			// 	checkNextLine = false
+			// } else {
 
 			if len(curLine) > 0 {
 
-				// If we are in a function, first check to see if this is the last line of the function
+				// First check to see if this is the last line of the function
 				if curLine[0:1] == "}" {
 					inFunc = false
 				} else {
 					// Don't count comments
 					if curLine[0:2] != "//" {
 						funcSize = funcSize + 1
-						curStat = funcLineMap[filePath+":"+curFuncName]
+						curStat = funcLineMap[key]
 						curStat.size = funcSize
-						uncovered := float64(1 - (curStat.covered / 100.0))
-						curStat.remaining = math.Ceil(float64(curStat.size) * uncovered)
-						if curStat.covered == 100.0 {
-							curStat.remaining = 0
-						}
-						funcLineMap[filePath+":"+curFuncName] = curStat
+						calcStats(funcSize, &curStat)
+						funcLineMap[key] = curStat
+						log.Printf("  %v", curLine)
 					}
 				}
+				checkNextLine = false
 			}
+			//}
 		} else {
-			if len(curLine) > 4 {
-				if curLine[0:4] == "func" {
-					inFunc = true
-					funcSize = 0
-					curFuncName = ""
-					funcNameStr := ""
+			// Check to see if the current line defines a function
+			// IMPORTANT!!!
+			// need to check if this is a one line function
+			// first strip away any trailing comments
+			// then check if there is both a { and a }
+			// if so, save it, set the count to 1 and roll on
+			if len(curLine) > 4 && curLine[0:4] == "func" {
+				inFunc = true
+				funcSize = 0
 
-					// need to check if this is an interface method
-					index1 = strings.Index(curLine, "(")
-					if index1 == 5 {
-						tempLine := curLine[6:]
-						index2 := strings.Index(tempLine, ")")
-						tempLine2 := tempLine[index2+2:]
-						index3 := strings.Index(tempLine2, "(")
-						funcNameStr = tempLine2[:index3]
-						curFuncName = funcNameStr
-					} else {
+				index1 = strings.Index(curLine, "(")
+				curFuncName = curLine[5:index1]
 
-						curFuncName = curLine[5:index1]
-					}
-
-					curStat = funcLineMap[filePath+":"+curFuncName]
-					curStat.size = funcSize
-					curStat.remaining = math.Floor(float64(curStat.size)*1.0 - (curStat.covered / 100.0))
-					if curStat.covered == 100.0 {
-						curStat.remaining = 0
-					}
-					funcLineMap[filePath+":"+curFuncName] = curStat
+				// need to check if this is an interface method
+				if index1 == 5 {
+					tempLine := curLine[6:]
+					index2 := strings.Index(tempLine, ")")
+					tempLine2 := tempLine[index2+2:]
+					index3 := strings.Index(tempLine2, "(")
+					curFuncName = tempLine2[:index3]
 				}
+
+				key = filePath + ":" + curFuncName
+
+				// set the value for the map
+				curStat = funcLineMap[key]
+				curStat.name = curFuncName
+				curStat.path = filePath
+
+				funcLineMap[key] = curStat
+
+				log.Printf(">>> %v\n", key)
 			}
 		}
 	}
@@ -228,11 +266,9 @@ func main() {
 
 	const padding = 3
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, padding, ' ', tabwriter.AlignRight|tabwriter.Debug)
-	fmt.Fprintln(w, "NAME\tSIZE\tCOVERAGE\tREMAINING\t")
+	fmt.Fprintln(w, "KEY\tFILE\tFUNCTION\tSIZE\tCOVERAGE\tREMAINING\t")
 	for key, val := range funcStats {
-		//fmt.Fprintln(w, "\t\t\t\t", key, val.size, val.covered, val.remaining)
-		fmt.Fprintln(w, key, "\t", val.size, "\t", val.covered, "\t", val.remaining, "\t")
-		//fmt.Printf("%v\t\t\t%v lines\t%v%%\t(%v lines uncovered)\n", key, val.size, val.covered, val.remaining)
+		fmt.Fprintln(w, key, "\t", val.path, "\t", val.name, "\t", val.size, "\t", val.covered, "\t", val.remaining, "\t")
 	}
 	w.Flush()
 }
