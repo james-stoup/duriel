@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -31,6 +32,13 @@ type flmap map[string]int
 // Usage simply prints out the usage for the program
 func usage() {
 	fmt.Printf("USAGE: durial <coverage.out>\n")
+}
+
+// Removes any comments that might be tacked on at the end of the line
+func cleanComment(line string) string {
+	cppcmt := regexp.MustCompile(`//.*`)
+	cleanedBytes := cppcmt.ReplaceAll([]byte(line), []byte(""))
+	return string(cleanedBytes[:])
 }
 
 // Handle calculating the coverage
@@ -109,20 +117,18 @@ func countFunctionLines(filePath string, funcLineMap statMap) error {
 						curStat.size = funcSize
 						calcStats(funcSize, &curStat)
 						funcLineMap[key] = curStat
-						log.Printf("  %v", curLine)
 					}
 				}
 				checkNextLine = false
 			}
 			//}
 		} else {
-			// Check to see if the current line defines a function
-			// IMPORTANT!!!
-			// need to check if this is a one line function
-			// first strip away any trailing comments
-			// then check if there is both a { and a }
-			// if so, save it, set the count to 1 and roll on
-			if len(curLine) > 4 && curLine[0:4] == "func" {
+
+			if len(curLine) > 4 && curLine[0:5] == "func " {
+
+				// remove any trailing comments
+				curLine = cleanComment(curLine)
+
 				inFunc = true
 				funcSize = 0
 
@@ -138,16 +144,19 @@ func countFunctionLines(filePath string, funcLineMap statMap) error {
 					curFuncName = tempLine2[:index3]
 				}
 
-				key = filePath + ":" + curFuncName
-
 				// set the value for the map
+				key = filePath + ":" + curFuncName
 				curStat = funcLineMap[key]
 				curStat.name = curFuncName
 				curStat.path = filePath
 
-				funcLineMap[key] = curStat
+				// check if this is a one line function
+				if strings.Contains(curLine, "{") && strings.Contains(curLine, "}") {
+					curStat.size = 1
+					inFunc = false
+				}
 
-				log.Printf(">>> %v\n", key)
+				funcLineMap[key] = curStat
 			}
 		}
 	}
