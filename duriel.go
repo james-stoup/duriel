@@ -67,42 +67,17 @@ func countFunctionLines(filePath string, funcLineMap statMap) error {
 	scanner := bufio.NewScanner(file)
 	curLine := ""
 	inFunc := false
-	checkNextLine := false
 	funcSize := 0
 	index1 := 0
 	curFuncName := ""
 	curStat := funcStat{}
 	key := ""
-	prevLine := ""
-
-	if checkNextLine == true || prevLine == "derp" {
-		log.Printf("derp")
-	}
 
 	// Iterate over the entire file
 	for scanner.Scan() {
-		//curLine = strings.TrimSpace(scanner.Text())
 		curLine = scanner.Text()
 
-		//log.Printf("curLine: |%v|", curLine)
-
 		if inFunc {
-
-			// check for one line functions
-			// if curLine == "" && checkNextLine {
-			// 	log.Printf("FOUND A ONE LINER")
-			// 	curStat = funcLineMap[filePath+":"+curFuncName]
-			// 	curStat.size = 1
-			// 	uncovered := float64(1 - (curStat.covered / 100.0))
-			// 	curStat.remaining = math.Ceil(float64(curStat.size) * uncovered)
-			// 	if curStat.covered == 100.0 {
-			// 		curStat.remaining = 0
-			// 	}
-
-			// 	funcLineMap[filePath+":"+curFuncName] = curStat
-			// 	inFunc = false
-			// 	checkNextLine = false
-			// } else {
 
 			if len(curLine) > 0 {
 
@@ -119,12 +94,11 @@ func countFunctionLines(filePath string, funcLineMap statMap) error {
 						funcLineMap[key] = curStat
 					}
 				}
-				checkNextLine = false
 			}
-			//}
+
 		} else {
 
-			if len(curLine) > 4 && curLine[0:5] == "func " {
+			if len(curLine) > 5 && curLine[0:5] == "func " {
 
 				// remove any trailing comments
 				curLine = cleanComment(curLine)
@@ -275,9 +249,9 @@ func main() {
 
 	const padding = 3
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, padding, ' ', tabwriter.AlignRight|tabwriter.Debug)
-	fmt.Fprintln(w, "KEY\tFILE\tFUNCTION\tSIZE\tCOVERAGE\tREMAINING\t")
-	for key, val := range funcStats {
-		fmt.Fprintln(w, key, "\t", val.path, "\t", val.name, "\t", val.size, "\t", val.covered, "\t", val.remaining, "\t")
+	fmt.Fprintln(w, "FILE\tFUNCTION\tSIZE\tCOVERAGE\tREMAINING\t")
+	for _, val := range funcStats {
+		fmt.Fprintln(w, val.path, "\t", val.name, "\t", val.size, "\t", fmt.Sprintf("%v%%", val.covered), "\t", val.remaining, "\t")
 	}
 	w.Flush()
 }
