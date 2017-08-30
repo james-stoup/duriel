@@ -32,6 +32,17 @@ type flmap map[string]int
 // Usage simply prints out the usage for the program
 func usage() {
 	fmt.Printf("USAGE: durial <coverage.out>\n")
+	expandedUsage := `
+
+  USAGE:
+
+    do stuff
+    more stuff
+
+    and the like
+`
+	fmt.Printf(expandedUsage)
+
 }
 
 // Removes any comments that might be tacked on at the end of the line
@@ -233,7 +244,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// try to open it (should be of type .out)
+	// try to open it
 	filePath := args[0]
 
 	fileList, funcStats := parseFunctionList(filePath)
@@ -247,6 +258,7 @@ func main() {
 
 	}
 
+	// Pretty Print everything (also, sort the map first)
 	const padding = 3
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, padding, ' ', tabwriter.AlignRight|tabwriter.Debug)
 	fmt.Fprintln(w, "FILE\tFUNCTION\tSIZE\tCOVERAGE\tREMAINING\t")
