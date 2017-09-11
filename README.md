@@ -1,4 +1,4 @@
-# duriel
+# Duriel
 A tool for interpreting Golang's test coverage output
 
 ## What does this do and why do I care?
@@ -19,17 +19,17 @@ And while this is very useful, when dealing with lots of files (and hundreds of 
 
 ```
 $ duriel cover_output.txt
-                                                                   FILE|                 FUNCTION|    SIZE|   COVERAGE|   REMAINING|
-    /home/breezy/go/src/github.com/rogpeppe/godef/go/scanner/errors.go |                   Error |      1 |      100% |          0 |
-   /home/breezy/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |              scanNumber |     61 |      100% |          0 |
-   /home/breezy/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |              scanEscape |     39 |     92.6% |          3 |
-   /home/breezy/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |                   error |      4 |      100% |          0 |
-   /home/breezy/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |             findLineEnd |     38 |     95.8% |          2 |
-   /home/breezy/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |                    Scan |    151 |      100% |          0 |
-   /home/breezy/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |           scanRawString |     11 |      100% |          0 |
-    /home/breezy/go/src/github.com/rogpeppe/godef/go/scanner/errors.go |                   Reset |      1 |        0% |          0 |
-   /home/breezy/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |                digitVal |      9 |      100% |          0 |
-   /home/breezy/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |              scanString |     14 |       90% |          2 |
+                                                        FILE|                 FUNCTION|    SIZE|   COVERAGE|   REMAINING|
+    ~/go/src/github.com/rogpeppe/godef/go/scanner/errors.go |                   Error |      1 |      100% |          0 |
+   ~/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |              scanNumber |     61 |      100% |          0 |
+   ~/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |              scanEscape |     39 |     92.6% |          3 |
+   ~/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |                   error |      4 |      100% |          0 |
+   ~/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |             findLineEnd |     38 |     95.8% |          2 |
+   ~/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |                    Scan |    151 |      100% |          0 |
+   ~/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |           scanRawString |     11 |      100% |          0 |
+    ~/go/src/github.com/rogpeppe/godef/go/scanner/errors.go |                   Reset |      1 |        0% |          0 |
+   ~/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |                digitVal |      9 |      100% |          0 |
+   ~/go/src/github.com/rogpeppe/godef/go/scanner/scanner.go |              scanString |     14 |       90% |          2 |
 ```
 
 ## Installation
